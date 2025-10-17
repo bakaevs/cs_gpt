@@ -22,7 +22,7 @@ public class ProcessQuestionTest {
     @Autowired
     private AssistantService assistantService;
 
-	@Test
+	//@Test
 	public void testConversation() {
 		try {
 			String question =  "Why Cow 1457 did not generate the alert on October 14th, 12 pm?";
@@ -38,7 +38,7 @@ public class ProcessQuestionTest {
 	}
 	
 	
-	//@Test
+	@Test
 	public void resetConversation() {
 		try {
 			assistantService.resetConversation("1");

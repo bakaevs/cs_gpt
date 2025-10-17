@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>System Assistant Chat</title>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #chat-container { max-width: 700px; margin: 0 auto; border: 1px solid #ccc; padding: 10px; height: 500px; overflow-y: auto; }
+        .message { margin: 5px 0; padding: 8px; border-radius: 5px; max-width: 80%; }
+        .user { background-color: #d1e7dd; align-self: flex-end; }
+        .assistant { background-color: #f8d7da; align-self: flex-start; }
+        #input-container { margin-top: 10px; display: flex; }
+        #user-input { flex-grow: 1; padding: 8px; }
+        #send-btn { padding: 8px 12px; }
+        .tool-call { font-style: italic; color: #555; margin-top: 2px; }
+    </style>
+</head>
+<body>
+    <h2>System Assistant Chat</h2>
+    <div id="chat-container"></div>
+
+    <div id="input-container">
+        <input type="text" id="user-input" placeholder="Type your question..." />
+        <button id="send-btn">Send</button>
+    </div>
+
+    <script type="text/javascript">
+        function appendMessage(role, text) {
+            let msgDiv = $('<div class="message"></div>');
+            msgDiv.addClass(role);
+            msgDiv.text(text);
+            $('#chat-container').append(msgDiv);
+            $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+        }
+
+        function appendToolCall(toolText) {
+            let toolDiv = $('<div class="message tool-call"></div>');
+            toolDiv.text(toolText);
+            $('#chat-container').append(toolDiv);
+            $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
+        }
+
+        $('#send-btn').click(function() {
+            let question = $('#user-input').val().trim();
+            if (!question) return;
+
+            appendMessage('user', question);
+            $('#user-input').val('');
+
+            $.ajax({
+                url: '/api/assistant/process',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ question: question, userId: '11-78' }),
+                success: function(response) {
+                    if (response.toolCalls && response.toolCalls.length > 0) {
+                        response.toolCalls.forEach(function(tool) {
+                            appendToolCall('Tool call: ' + tool.name + ' → ' + JSON.stringify(tool.arguments));
+                        });
+                    }
+                    appendMessage('assistant', response.answer);
+                },
+                error: function(xhr) {
+                    appendMessage('assistant', 'Error: ' + xhr.responseText);
+                }
+            });
+        });
+
+        // Optionally allow pressing Enter to send
+        $('#user-input').keypress(function(e) {
+            if (e.which === 13) { $('#send-btn').click(); }
+        });
+    </script>
+</body>
+</html>
