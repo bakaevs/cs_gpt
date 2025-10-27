@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -42,7 +43,11 @@ public class OpenAIAssistantClient {
     @Value("${openai.api.key}")
     private String apiKey;
 
-    private final OkHttpClient httpClient = new OkHttpClient();
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+    	    .connectTimeout(30, TimeUnit.SECONDS)
+    	    .writeTimeout(30, TimeUnit.SECONDS)
+    	    .readTimeout(120, TimeUnit.SECONDS)
+    	    .build();
     private final ChatMessageRepository chatMessageRepository;
 
     @Autowired
@@ -91,6 +96,9 @@ public class OpenAIAssistantClient {
                     .post(body)
                     .build();
 
+            
+            
+            
             try (Response response = httpClient.newCall(request).execute()) {
                 String responseStr = response.body().string();
                 JSONObject responseJson = new JSONObject(responseStr);
@@ -157,47 +165,59 @@ public class OpenAIAssistantClient {
                         String name = fnObj.getString("name");
                         JSONObject args = new JSONObject(fnObj.getString("arguments"));
 
+                        String alert = new String();
                         if ("get_cow_calving_status".equals(name)) {
-                            int cowId = args.optInt("cowId", -1);
-                            int farmId = Integer.parseInt(userId.split("-")[1]);
-                            String rawDate = args.optString("date", "");
-                            LocalDate parsedDate;
+                        	alert = "CIH";
 
-                            try {
-                                if (rawDate == null || rawDate.isBlank()) {
-                                    parsedDate = LocalDate.now();
-                                } else {
-                                    // Try ISO first (e.g. 2025-10-16)
-                                    parsedDate = LocalDate.parse(rawDate);
-                                    if (parsedDate.isBefore(LocalDate.now().minusMonths(6))) {
-                                    	parsedDate = parsedDate.withYear(Year.now().getValue());
-                                    }
-                                }
-                            } catch (DateTimeParseException e1) {
-                                // If natural language-like input (e.g. "Oct 16th", "October 16")
-                                try {
-                                    String cleaned = rawDate.replaceAll("(?<=\\d)(st|nd|rd|th)", "").trim();
-                                    DateTimeFormatter fmt = new DateTimeFormatterBuilder()
-                                            .parseCaseInsensitive()
-                                            .appendPattern("MMM d")
-                                            .toFormatter(Locale.ENGLISH);
-                                    parsedDate = LocalDate.parse(cleaned, fmt)
-                                            .withYear(Year.now().getValue()); // default to current year
-                                } catch (DateTimeParseException e2) {
-                                    // Fallback to today if still unrecognized
-                                    parsedDate = LocalDate.now();
+                        }
+                        if ("get_cow_heat_status".equals(name)) {
+                        	alert = "HEAT";
+                        }
+                        if ("check_animal_low_activity".equals(name)) {
+                        	alert = "LOW_ACT";
+                        }                        
+                        
+                        
+                        
+                        int cowId = args.optInt("cowId", -1);
+                        int farmId = Integer.parseInt(userId.split("-")[1]);
+                        String rawDate = args.optString("date", "");
+                        LocalDate parsedDate;
+
+                        try {
+                            if (rawDate == null || rawDate.isBlank()) {
+                                parsedDate = LocalDate.now();
+                            } else {
+                                // Try ISO first (e.g. 2025-10-16)
+                                parsedDate = LocalDate.parse(rawDate);
+                                if (parsedDate.isBefore(LocalDate.now().minusMonths(6))) {
+                                	parsedDate = parsedDate.withYear(Year.now().getValue());
                                 }
                             }
-
-                            String date = parsedDate.toString();
-                            String time = args.optString("time", "unknown");
-
-                            String result = getCowCalvingStatus(cowId, farmId, date, time);
-
-                            // Save tool response in DB
-                            //chatMessageRepository.save(new ChatMessage(userId, "assistant", result));
-                            return new ApiResponse(result);
+                        } catch (DateTimeParseException e1) {
+                            // If natural language-like input (e.g. "Oct 16th", "October 16")
+                            try {
+                                String cleaned = rawDate.replaceAll("(?<=\\d)(st|nd|rd|th)", "").trim();
+                                DateTimeFormatter fmt = new DateTimeFormatterBuilder()
+                                        .parseCaseInsensitive()
+                                        .appendPattern("MMM d")
+                                        .toFormatter(Locale.ENGLISH);
+                                parsedDate = LocalDate.parse(cleaned, fmt)
+                                        .withYear(Year.now().getValue()); // default to current year
+                            } catch (DateTimeParseException e2) {
+                                // Fallback to today if still unrecognized
+                                parsedDate = LocalDate.now();
+                            }
                         }
+
+                        String date = parsedDate.toString();
+                        String time = args.optString("time", "unknown");
+
+                        String result = checkAlertStatus(cowId, farmId, date, time, alert);
+
+                        // Save tool response in DB
+                        //chatMessageRepository.save(new ChatMessage(userId, "assistant", result));
+                        return new ApiResponse(result);                        
                     }
                 }
 
@@ -208,7 +228,7 @@ public class OpenAIAssistantClient {
     }
 
 
-    private String getCowCalvingStatus(int cowId, int farmId, String date, String time) {
+    private String checkAlertStatus(int cowId, int farmId, String date, String time, String alert) {
     	OkHttpClient client = createUnsafeClient();
         ObjectMapper objectMapper = new ObjectMapper();
 
@@ -220,7 +240,7 @@ public class OpenAIAssistantClient {
             Map<String, Object> params = new HashMap<>();
             params.put("farm_id", farmId);
             params.put("animal_id", cowId);
-            params.put("expected_event", "calving");
+            params.put("expected_event", alert);
             params.put("date", date);
             params.put("time", time);
             action.setParameters(params);

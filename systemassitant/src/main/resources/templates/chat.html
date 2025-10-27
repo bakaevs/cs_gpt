@@ -52,7 +52,7 @@
                 url: '/api/assistant/process',
                 method: 'POST',
                 contentType: 'application/json',
-                data: JSON.stringify({ question: question, userId: '11-78' }),
+                data: JSON.stringify({ question: question, userId: '12-78' }),
                 success: function(response) {
                     if (response.toolCalls && response.toolCalls.length > 0) {
                         response.toolCalls.forEach(function(tool) {
