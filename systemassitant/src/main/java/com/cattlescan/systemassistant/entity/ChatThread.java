@@ -2,7 +2,6 @@ package com.cattlescan.systemassistant.entity;
 
 import java.time.LocalDateTime;
 
-import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityListeners;
 import javax.persistence.GeneratedValue;
@@ -11,33 +10,27 @@ import javax.persistence.Id;
 
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-public class ChatMessage {
+public class ChatThread {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    
+    private String name;      // thread title
 
     @CreatedBy
     private String userId;
-    private String role;
-    private String content;
-    private Long threadId; 
-    @CreatedDate
-    private LocalDateTime createdAt;    
     
+    @CreatedDate
+    private LocalDateTime createdAt;
 
-
-    public ChatMessage() {}
-
-    public ChatMessage(String userId, String role, String content) {
-        this.userId = userId;
-        this.role = role;
-        this.content = content;
-    }
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
 
 	public Long getId() {
 		return id;
@@ -45,6 +38,14 @@ public class ChatMessage {
 
 	public void setId(Long id) {
 		this.id = id;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
 	}
 
 	public String getUserId() {
@@ -55,30 +56,6 @@ public class ChatMessage {
 		this.userId = userId;
 	}
 
-	public String getRole() {
-		return role;
-	}
-
-	public void setRole(String role) {
-		this.role = role;
-	}
-
-	public String getContent() {
-		return content;
-	}
-
-	public void setContent(String content) {
-		this.content = content;
-	}
-
-	public Long getThreadId() {
-		return threadId;
-	}
-
-	public void setThreadId(Long threadId) {
-		this.threadId = threadId;
-	}
-
 	public LocalDateTime getCreatedAt() {
 		return createdAt;
 	}
@@ -87,8 +64,15 @@ public class ChatMessage {
 		this.createdAt = createdAt;
 	}
 
+	public LocalDateTime getUpdatedAt() {
+		return updatedAt;
+	}
 
+	public void setUpdatedAt(LocalDateTime updatedAt) {
+		this.updatedAt = updatedAt;
+	}
+    
+    
 
-	
 
 }

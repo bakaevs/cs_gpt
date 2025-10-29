@@ -63,48 +63,50 @@ public class OpenAIAssistantClient {
      * Supports tool calls.
      */
  // --- In OpenAIAssistantClient ---
-    public ApiResponse askAssistant(String userId, String userMessage, String context) {
+    public ApiResponse askAssistant(String userId, Long threadId, String userMessage, String context) {
+
         try {
-            // --- Load conversation history from DB ---
-            List<ChatMessage> history = chatMessageRepository.findByUserIdOrderByTimestampAsc(userId);
+            // ✅ 1 — Load conversation history ONLY for this thread
+            List<ChatMessage> history =
+                    chatMessageRepository.findByThreadIdOrderByCreatedAtAsc(threadId);
+
             JSONArray conversationHistory = buildConversationJSONArray(history);
 
-            // --- Add user message including context ---
+            // ✅ 2 — Include context + user message as final message
             JSONObject userMsgObj = new JSONObject();
             userMsgObj.put("role", "user");
             userMsgObj.put("content", "Context:\n" + context + "\n\nQuestion:\n" + userMessage);
             conversationHistory.put(userMsgObj);
 
-            // --- Save user message in DB ---
-            //chatMessageRepository.save(new ChatMessage(userId, "user", userMessage));
-
-            // --- Build JSON payload for OpenAI API ---
+            // ✅ 3 — Build request payload
             JSONObject payload = new JSONObject();
             payload.put("model", "gpt-4o-mini");
             payload.put("messages", conversationHistory);
 
-            // --- Add function/tool definitions ---
+            // ✅ 4 — Add tools/functions if configured
             JSONArray functions = functionConfigService.getFunctions();
             JSONArray tools = buildToolsJSONArray(functions);
             payload.put("tools", tools);
 
-            // --- Call OpenAI API ---
-            RequestBody body = RequestBody.create(MediaType.parse("application/json"), payload.toString());
+            // ✅ 5 — Send request to OpenAI
+            RequestBody body = RequestBody.create(
+                    MediaType.parse("application/json"),
+                    payload.toString()
+            );
+
             Request request = new Request.Builder()
                     .url("https://api.openai.com/v1/chat/completions")
                     .header("Authorization", "Bearer " + apiKey)
                     .post(body)
                     .build();
 
-            
-            
-            
             try (Response response = httpClient.newCall(request).execute()) {
+
                 String responseStr = response.body().string();
                 JSONObject responseJson = new JSONObject(responseStr);
 
-                // --- Handle OpenAI response (including function calls) ---
-                return handleOpenAIResponse(userId, responseJson);
+                // ✅ 6 — Delegate handling (and saving messages)
+                return handleOpenAIResponse(userId, threadId, responseJson);
             }
 
         } catch (Exception e) {
@@ -112,6 +114,7 @@ public class OpenAIAssistantClient {
             return new ApiResponse("Error calling Assistant API: " + e.getMessage());
         }
     }
+
 
 
     /**
@@ -146,86 +149,137 @@ public class OpenAIAssistantClient {
     /**
      * Handle OpenAI API response, including tool calls, and store assistant messages.
      */
-    private ApiResponse handleOpenAIResponse(String userId, JSONObject responseJson) {
+    private ApiResponse handleOpenAIResponse(String userId, Long threadId, JSONObject responseJson) {
+
+        ApiResponse apiResponse = new ApiResponse();
+        apiResponse.setThreadId(threadId);
+        apiResponse.setRaw(responseJson.toString());  // ✅ keep whole response for debugging
+
         JSONArray choices = responseJson.optJSONArray("choices");
-        if (choices != null && choices.length() > 0) {
-            JSONObject messageObj = choices.getJSONObject(0).optJSONObject("message");
-            if (messageObj != null) {
-                String assistantContent = messageObj.optString("content", "No answer.");
+        if (choices == null || choices.length() == 0) {
+            apiResponse.setAnswer("Empty response from model.");
+            return apiResponse;
+        }
 
-                // Save assistant message in DB
-                //chatMessageRepository.save(new ChatMessage(userId, "assistant", assistantContent));
+        JSONObject messageObj = choices.getJSONObject(0).optJSONObject("message");
+        if (messageObj == null) {
+            apiResponse.setAnswer("Empty response from model.");
+            return apiResponse;
+        }
 
-                // Process tool calls if any
-                if (messageObj.has("tool_calls")) {
-                    JSONArray toolCalls = messageObj.getJSONArray("tool_calls");
-                    for (int i = 0; i < toolCalls.length(); i++) {
-                        JSONObject tool = toolCalls.getJSONObject(i);
-                        JSONObject fnObj = tool.getJSONObject("function");
-                        String name = fnObj.getString("name");
-                        JSONObject args = new JSONObject(fnObj.getString("arguments"));
+        // ====================================================
+        // ✅ 1) TOOL CALLS
+        // ====================================================
+        if (messageObj.has("tool_calls")) {
 
-                        String alert = new String();
-                        if ("get_cow_calving_status".equals(name)) {
-                        	alert = "CIH";
+            JSONArray toolCalls = messageObj.getJSONArray("tool_calls");
 
+            // For debugging or UI, store all tool calls in payload
+            apiResponse.setPayload(toolCalls.toString());
+
+            for (int i = 0; i < toolCalls.length(); i++) {
+
+                JSONObject tool = toolCalls.getJSONObject(i);
+                JSONObject fnObj = tool.getJSONObject("function");
+
+                String functionName = fnObj.getString("name");
+                JSONObject args = new JSONObject(fnObj.getString("arguments"));
+
+                String alertType;
+
+                switch (functionName) {
+                    case "get_cow_calving_status":
+                        alertType = "CIH";
+                        break;
+
+                    case "get_cow_heat_status":
+                        alertType = "HEAT";
+                        break;
+
+                    case "check_animal_low_activity":
+                        alertType = "LOW_ACT";
+                        break;
+
+                    default:
+                        alertType = "UNKNOWN";
+                        break;
+                }
+
+
+                int cowId = args.optInt("cowId", -1);
+                int farmId = Integer.parseInt(userId.split("-")[1]);
+
+                // ------------------------------
+                // ✅ Parse date
+                // ------------------------------
+                String rawDate = args.optString("date", "");
+                LocalDate parsedDate;
+
+                try {
+                    if (rawDate == null || rawDate.isBlank()) {
+                        parsedDate = LocalDate.now();
+                    } else {
+                        parsedDate = LocalDate.parse(rawDate);
+
+                        if (parsedDate.isBefore(LocalDate.now().minusMonths(6))) {
+                            parsedDate = parsedDate.withYear(Year.now().getValue());
                         }
-                        if ("get_cow_heat_status".equals(name)) {
-                        	alert = "HEAT";
-                        }
-                        if ("check_animal_low_activity".equals(name)) {
-                        	alert = "LOW_ACT";
-                        }                        
-                        
-                        
-                        
-                        int cowId = args.optInt("cowId", -1);
-                        int farmId = Integer.parseInt(userId.split("-")[1]);
-                        String rawDate = args.optString("date", "");
-                        LocalDate parsedDate;
-
-                        try {
-                            if (rawDate == null || rawDate.isBlank()) {
-                                parsedDate = LocalDate.now();
-                            } else {
-                                // Try ISO first (e.g. 2025-10-16)
-                                parsedDate = LocalDate.parse(rawDate);
-                                if (parsedDate.isBefore(LocalDate.now().minusMonths(6))) {
-                                	parsedDate = parsedDate.withYear(Year.now().getValue());
-                                }
-                            }
-                        } catch (DateTimeParseException e1) {
-                            // If natural language-like input (e.g. "Oct 16th", "October 16")
-                            try {
-                                String cleaned = rawDate.replaceAll("(?<=\\d)(st|nd|rd|th)", "").trim();
-                                DateTimeFormatter fmt = new DateTimeFormatterBuilder()
-                                        .parseCaseInsensitive()
-                                        .appendPattern("MMM d")
-                                        .toFormatter(Locale.ENGLISH);
-                                parsedDate = LocalDate.parse(cleaned, fmt)
-                                        .withYear(Year.now().getValue()); // default to current year
-                            } catch (DateTimeParseException e2) {
-                                // Fallback to today if still unrecognized
-                                parsedDate = LocalDate.now();
-                            }
-                        }
-
-                        String date = parsedDate.toString();
-                        String time = args.optString("time", "unknown");
-
-                        String result = checkAlertStatus(cowId, farmId, date, time, alert);
-
-                        // Save tool response in DB
-                        //chatMessageRepository.save(new ChatMessage(userId, "assistant", result));
-                        return new ApiResponse(result);                        
+                    }
+                } catch (DateTimeParseException e1) {
+                    try {
+                        String cleaned = rawDate.replaceAll("(?<=\\d)(st|nd|rd|th)", "").trim();
+                        DateTimeFormatter fmt = new DateTimeFormatterBuilder()
+                                .parseCaseInsensitive()
+                                .appendPattern("MMM d")
+                                .toFormatter(Locale.ENGLISH);
+                        parsedDate = LocalDate.parse(cleaned, fmt)
+                                .withYear(Year.now().getValue());
+                    } catch (Exception e2) {
+                        parsedDate = LocalDate.now();
                     }
                 }
 
-                return new ApiResponse(assistantContent);
+                String date = parsedDate.toString();
+                String time = args.optString("time", "unknown");
+
+                // ------------------------------
+                // ✅ Run internal alert checker
+                // ------------------------------
+                String result = checkAlertStatus(cowId, farmId, date, time, alertType);
+
+                // ------------------------------
+                // ✅ Save tool message to DB
+                /* ------------------------------
+                ChatMessage toolMsg = new ChatMessage();
+                toolMsg.setUserId(userId);
+                toolMsg.setThreadId(threadId);
+                toolMsg.setRole("assistant");
+                toolMsg.setContent(result);
+                chatMessageRepository.save(toolMsg);*/
+
+                apiResponse.setAnswer(result);
+                apiResponse.setPayload(result);
+                return apiResponse;
             }
         }
-        return new ApiResponse("Empty response from model.");
+
+        // ====================================================
+        // ✅ 2) NORMAL ASSISTANT MESSAGE
+        // ====================================================
+        String assistantText = messageObj.optString("content", "No response.");
+
+        ChatMessage assistantMsg = new ChatMessage();
+        assistantMsg.setUserId(userId);
+        assistantMsg.setThreadId(threadId);
+        assistantMsg.setRole("assistant");
+        assistantMsg.setContent(assistantText);
+        chatMessageRepository.save(assistantMsg);
+
+        apiResponse.setAnswer(assistantText);
+
+        return apiResponse;
     }
+
 
 
     private String checkAlertStatus(int cowId, int farmId, String date, String time, String alert) {

@@ -10,99 +10,106 @@
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 
-    <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-        }
+<style>
+    body, html {
+        height: 100%;
+        margin: 0;
+    }
 
-        .chat-wrapper {
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
+    .chat-wrapper {
+        height: 100vh;
+        display: flex;
+        overflow: hidden;
+    }
 
-        /* Sidebar */
-        #thread-sidebar {
-            width: 280px;
-            background: #f8f9fa;
-            border-right: 1px solid #ddd;
-            overflow-y: auto;
-        }
+    /* -------- Sidebar -------- */
+    #thread-sidebar {
+        width: 280px;
+        background: #f8f9fa;
+        border-right: 1px solid #ddd;
+        overflow-y: auto;
+    }
 
-        .thread-item {
-            padding: 12px;
-            border-bottom: 1px solid #e5e5e5;
-            cursor: pointer;
-        }
+    .thread-item {
+        padding: 12px;
+        border-bottom: 1px solid #e5e5e5;
+        cursor: pointer;
+    }
 
-        .thread-item:hover {
-            background: #e9ecef;
-        }
+    .thread-item:hover {
+        background: #e9ecef;
+    }
 
-        .thread-item.active {
-            background: #007bff;
-            color: white;
-        }
+    .thread-item.active {
+        background: #007bff;
+        color: white;
+    }
 
-        /* Chat panel */
-        #chat-panel {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
+    /* -------- Chat panel -------- */
+    #chat-panel {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
 
-        #chat-header {
-            padding: 15px;
-            background: #f1f1f1;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    #chat-header {
+        padding: 15px;
+        background: #f1f1f1;
+        border-bottom: 1px solid #ddd;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
 
-        #chat-container {
-            flex-grow: 1;
-            padding: 15px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-        }
+    #chat-container {
+        flex-grow: 1;
+        padding: 15px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
 
-        .message {
-            padding: 10px 14px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            max-width: 70%;
-            white-space: pre-line;
-        }
+    .msg-block {
+        margin-bottom: 18px;
+        max-width: 75%;
+    }
 
-        .message.user {
-            background: #d1e7dd;
-            align-self: flex-end;
-        }
+    .msg-bubble {
+        padding: 12px 16px;
+        border-radius: 12px;
+        white-space: pre-line;
+        font-size: 15px;
+        line-height: 1.35;
+    }
 
-        .message.assistant {
-            background: #f8d7da;
-            align-self: flex-start;
-        }
+    .user .msg-bubble {
+        background: #d1e7dd;
+        align-self: flex-end;
+    }
 
-        #chat-input-row {
-            padding: 10px;
-            border-top: 1px solid #ddd;
-        }
+    .assistant .msg-bubble {
+        background: #f8d7da;
+        align-self: flex-start;
+    }
 
-        #message-input {
-            width: 85%;
-            height: 40px;
-            padding: 8px;
-        }
+    .msg-timestamp {
+        font-size: 11px;
+        margin-top: 4px;
+        opacity: 0.7;
+    }
 
-        #send-btn {
-            width: 14%;
-        }
-    </style>
+    #typing-indicator {
+        padding: 10px 18px;
+        background: #eee;
+        border-radius: 12px;
+        font-size: 14px;
+        width: fit-content;
+        margin-top: 10px;
+        display: none;
+    }
+</style>
+
 </head>
 
 <body>
@@ -148,142 +155,212 @@
 </div>
 
 
-<!-- ✅ Rename Thread Modal -->
-<div class="modal" id="renameModal" tabindex="-1" role="dialog">
+<!-- ✅ Rename Thread Modal (Bootstrap 4 correct markup) -->
+<div class="modal fade" id="renameModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
+
             <div class="modal-header">
                 <h5 class="modal-title">Rename Thread</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
+
             <div class="modal-body">
                 <input id="rename-input" class="form-control" placeholder="New name">
             </div>
+
             <div class="modal-footer">
                 <button id="rename-save-btn" class="btn btn-primary">Save</button>
                 <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
             </div>
+
         </div>
     </div>
 </div>
 
 <!-- Bootstrap JS (modal support) -->
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
 
 <script>
 
-    let activeThreadId = null;
-    const userId = "12-78";
+let activeThreadId = null;
+const userId = "12-78";
 
-    $(document).ready(function () {
-        loadThreads();
+$(document).ready(function () {
+    loadThreads();
+
+    // ✅ ENTER sends message
+    $("#message-input").keypress(function (e) {
+        if (e.which === 13) {
+            e.preventDefault();
+            $("#send-btn").click();
+        }
     });
+});
 
+/* -------------------------------------------------------
+   ✅ Load Thread List
+------------------------------------------------------- */
+function loadThreads() {
+    $.get("/api/assistant/threads?userId=" + userId, function (threads) {
+        $("#thread-list").empty();
 
-    /* ✅ Load Thread List */
-    function loadThreads() {
-        $.get("/api/assistant/threads?userId=" + userId, function (threads) {
-            $("#thread-list").empty();
+        threads.forEach(t => {
+            const div = $("<div>")
+                .addClass("thread-item")
+                .attr("data-id", t.threadId)
+                .text(t.threadName)
+                .click(() => openThread(t.threadId, t.threadName));
 
-            threads.forEach(t => {
-                const div = $("<div>")
-                    .addClass("thread-item")
-                    .attr("data-id", t.threadId)
-                    .text(t.threadName)
-                    .click(() => openThread(t.threadId, t.threadName));
-
-                $("#thread-list").append(div);
-            });
+            $("#thread-list").append(div);
         });
-    }
+    });
+}
 
+/* -------------------------------------------------------
+   ✅ Open Thread + display messages
+------------------------------------------------------- */
+function openThread(id, name) {
+    activeThreadId = id;
 
-    /* ✅ Open a Thread */
-    function openThread(id, name) {
-        activeThreadId = id;
+    $(".thread-item").removeClass("active");
+    $(`.thread-item[data-id='${id}']`).addClass("active");
 
-        $(".thread-item").removeClass("active");
-        $(`.thread-item[data-id='${id}']`).addClass("active");
+    $("#thread-title").text(name);
+    $("#rename-thread-btn").prop("disabled", false);
+    $("#message-input, #send-btn").prop("disabled", false);
 
-        $("#thread-title").text(name);
-        $("#rename-thread-btn").prop("disabled", false);
-        $("#message-input, #send-btn").prop("disabled", false);
+    $("#chat-container").empty();
 
-        $("#chat-container").empty();
+    $.get("/api/assistant/thread/messages?threadId=" + id, function (messages) {
+        messages.forEach(msg => appendMessage(msg.role, msg.content, msg.createdAt));
+        scrollBottom();
+    });
+}
 
-        $.get("/api/assistant/thread/messages?threadId=" + id, function (messages) {
-            messages.forEach(msg => appendMessage(msg.role, msg.content));
-            scrollBottom();
-        });
-    }
+/* -------------------------------------------------------
+   ✅ Create New Thread
+------------------------------------------------------- */
+$("#new-thread-btn").click(function () {
+    let name = prompt("Enter thread name:");
+    if (!name) name = "New Thread";
 
-
-    /* ✅ Create New Thread */
-    $("#new-thread-btn").click(function () {
-        $.post("/api/assistant/thread/create?userId=" + userId, function (data) {
+    $.post("/api/assistant/thread/create?userId=" + userId + "&name=" + encodeURIComponent(name),
+        function (newId) {
             loadThreads();
         });
-    });
+});
 
+/* -------------------------------------------------------
+   ✅ Rename Thread
+------------------------------------------------------- */
+$("#rename-thread-btn").click(function () {
+    $("#renameModal").modal("show");
+});
 
-    /* ✅ Rename Thread */
-    $("#rename-thread-btn").click(function () {
-        $("#renameModal").modal("show");
-    });
+$("#rename-save-btn").click(function () {
+    const newName = $("#rename-input").val().trim();
+    if (!newName) return;
 
-    $("#rename-save-btn").click(function () {
-        const newName = $("#rename-input").val().trim();
-        if (!newName) return;
-
-        $.post("/api/assistant/thread/rename",
-            {threadId: activeThreadId, name: newName},
-            function () {
-                $("#renameModal").modal("hide");
-                loadThreads();
-                $("#thread-title").text(newName);
-            });
-    });
-
-
-    /* ✅ Send Message */
-    $("#send-btn").click(function () {
-        const msg = $("#message-input").val().trim();
-        if (!msg || !activeThreadId) return;
-
-        appendMessage("user", msg);
-        $("#message-input").val("");
-
-        $.ajax({
-            url: "/api/assistant/thread/send",
-            method: "POST",
-            contentType: "application/json",
-            data: JSON.stringify({
-                threadId: activeThreadId,
-                userId: userId,
-                question: msg
-            }),
-            success: function (res) {
-                appendMessage("assistant", res.answer);
-                scrollBottom();
-            },
-            error: function (xhr) {
-                appendMessage("assistant", "Error: " + xhr.responseText);
-            }
+    $.post("/api/assistant/thread/rename",
+        { threadId: activeThreadId, name: newName },
+        function () {
+            $("#renameModal").modal("hide");
+            loadThreads();
+            $("#thread-title").text(newName);
         });
+});
+
+/* -------------------------------------------------------
+   ✅ Send Message
+------------------------------------------------------- */
+$("#send-btn").click(function () {
+    const msg = $("#message-input").val().trim();
+    if (!msg || !activeThreadId) return;
+
+    appendMessage("user", msg);
+    $("#message-input").val("");
+    scrollBottom();
+
+    showTyping(true);
+
+    $.ajax({
+        url: "/api/assistant/thread/send",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+            threadId: activeThreadId,
+            userId: userId,
+            question: msg
+        }),
+        success: function (res) {
+            showTyping(false);
+            appendMessage("assistant", res.answer);
+            scrollBottom();
+        },
+        error: function (xhr) {
+            showTyping(false);
+            appendMessage("assistant", "Error: " + xhr.responseText);
+            scrollBottom();
+        }
     });
+});
 
+/* -------------------------------------------------------
+   ✅ Helper: render message bubble
+------------------------------------------------------- */
+function appendMessage(role, text, timestamp) {
+    const time = timestamp ? formatTimestamp(timestamp) : currentTime();
 
-    /* ✅ Helper Functions */
-    function appendMessage(role, text) {
-        let div = $("<div>").addClass("message").addClass(role).text(text);
-        $("#chat-container").append(div);
+    let block = $("<div>").addClass("msg-block").addClass(role);
+
+    let bubble = $("<div>").addClass("msg-bubble").text(text);
+    let stamp = $("<div>").addClass("msg-timestamp").text(time);
+
+    block.append(bubble).append(stamp);
+    $("#chat-container").append(block);
+}
+
+/* -------------------------------------------------------
+   ✅ Timestamps
+------------------------------------------------------- */
+function currentTime() {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatTimestamp(ts) {
+    return new Date(ts).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+/* -------------------------------------------------------
+   ✅ Typing Indicator
+------------------------------------------------------- */
+function showTyping(on) {
+    if (on) {
+        if ($("#typing-indicator").length === 0) {
+            $("#chat-container").append(
+                `<div id="typing-indicator">Assistant is typing…</div>`
+            );
+        }
+    } else {
+        $("#typing-indicator").remove();
     }
+}
 
-    function scrollBottom() {
-        const chat = $("#chat-container");
-        chat.scrollTop(chat.prop("scrollHeight"));
-    }
+/* -------------------------------------------------------
+   ✅ Auto-scroll
+------------------------------------------------------- */
+function scrollBottom() {
+    const chat = $("#chat-container");
+    chat.stop().animate({ scrollTop: chat.prop("scrollHeight") }, 250);
+}
 
 </script>
+
 
 </body>
 </html>

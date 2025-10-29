@@ -1,6 +1,8 @@
 package com.cattlescan.systemassistant.service;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -11,9 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cattlescan.systemassistant.entity.ChatMessage;
+import com.cattlescan.systemassistant.entity.ChatThread;
 import com.cattlescan.systemassistant.model.ApiResponse;
 import com.cattlescan.systemassistant.model.SearchResult;
 import com.cattlescan.systemassistant.repository.ChatMessageRepository;
+import com.cattlescan.systemassistant.repository.ChatThreadRepository;
 
 @Service
 public class AssistantService {
@@ -29,45 +33,58 @@ public class AssistantService {
 
     @Autowired
     private ChatMessageRepository chatRepo;
+    
+    @Autowired
+    private ChatThreadRepository chatThreadRepo;
 
 
     public ApiResponse processQuestion(String question, String userId, Long threadId) throws IOException {
 
-        // ✅ 1 — If no threadId → create a new thread
+        // ✅ 1. Auto-create new thread if needed
         if (threadId == null) {
-            threadId = createThread(userId);
+            String autoName = "Chat — " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+            threadId = createThread(userId, autoName);
         }
 
-        // ✅ 2 — Save user message
-        ChatMessage userMessageEntity = new ChatMessage();
-        userMessageEntity.setUserId(userId);
-        userMessageEntity.setRole("user");
-        userMessageEntity.setContent(question);
-        userMessageEntity.setThreadId(threadId);
-        chatRepo.save(userMessageEntity);
+        // ✅ 2. Save user message
+        saveUserMessage(userId, threadId, question);
 
-        // ✅ 3 — Generate embedding / find context
+        // ✅ 3. Generate embedding
         double[] queryEmbedding = embeddingService.generateEmbedding(question);
         List<SearchResult> contextResults = vectorStoreService.findSimilar(queryEmbedding);
         String context = vectorStoreService.combineResults(contextResults);
 
-        // ✅ 4 — Call Assistant with context
-        ApiResponse response = assistantClient.askAssistant(userId, question, context);
+        // ✅ 4. Ask assistant
+        ApiResponse response = assistantClient.askAssistant(userId, threadId, question, context);
 
-        // ✅ 5 — Save assistant message
-        ChatMessage assistantMessageEntity = new ChatMessage();
-        assistantMessageEntity.setUserId(userId);
-        assistantMessageEntity.setRole("assistant");
-        assistantMessageEntity.setContent(response.getAnswer());
-        assistantMessageEntity.setThreadId(threadId);
-        chatRepo.save(assistantMessageEntity);
+        // ✅ 5. Save assistant message
+        saveAssistantMessage(userId, threadId, response.getAnswer());
 
-        // include thread id in response
-        response.setThreadId(threadId);
 
         return response;
     }
 
+
+    private void saveUserMessage(String userId, Long threadId, String content) {
+        ChatMessage msg = new ChatMessage();
+        msg.setUserId(userId);
+        msg.setThreadId(threadId);
+        msg.setRole("user");
+        msg.setContent(content);
+
+        chatRepo.save(msg);
+    }
+    
+    private void saveAssistantMessage(String userId, Long threadId, String content) {
+        ChatMessage msg = new ChatMessage();
+        msg.setUserId(userId);
+        msg.setThreadId(threadId);
+        msg.setRole("assistant");
+        msg.setContent(content);
+
+        chatRepo.save(msg);
+    }
+    
 
     /**
      * Resets conversation for a user by deleting previous messages
@@ -77,12 +94,6 @@ public class AssistantService {
         chatRepo.deleteByUserId(""+userId);
     }
 
-    /**
-     * Retrieves full conversation for display
-     */
-    public List<ChatMessage> getConversation(String userId) {
-        return chatRepo.findByUserIdOrderByTimestampAsc(""+userId);
-    }
 
     /**
      * Retrieves context for assistant from embeddings (can be used separately)
@@ -94,19 +105,20 @@ public class AssistantService {
         return vectorStoreService.combineResults(contextResults);
     }
     
-    public Long createThread(String userId) {
-        ChatMessage starter = new ChatMessage();
-        starter.setUserId(userId);
-        starter.setRole("system");
-        starter.setContent("THREAD_STARTED");
-        chatRepo.save(starter);
-        starter.setThreadId(starter.getId()); // use message id as thread id
-        chatRepo.save(starter);
-        return starter.getThreadId();
+    @Transactional
+    public Long createThread(String userId, String name) {
+        ChatThread t = new ChatThread();
+        t.setUserId(userId);
+        t.setName(name);
+        t.setCreatedAt(LocalDateTime.now());
+        t.setUpdatedAt(LocalDateTime.now());
+        chatThreadRepo.save(t);
+        return t.getId();
     }
+
     
     public List<ChatMessage> getThread(Long threadId) {
-        return chatRepo.findByThreadIdOrderByTimestampAsc(threadId);
+        return chatRepo.findByThreadIdOrderByCreatedAtAsc(threadId);
     }
     
     public List<Long> getUserThreads(String userId) {
@@ -121,29 +133,32 @@ public class AssistantService {
 	    /* ---------------------------------------------------------
 	    ✅ Return all threads for a user
 	    --------------------------------------------------------- */
-	 public List<Map<String, Object>> getThreads(String userId) {
+    public List<Map<String, Object>> getThreads(String userId) {
+
+        List<ChatThread> threads = chatThreadRepo.findByUserIdOrderByUpdatedAtDesc(userId);
+        List<Map<String, Object>> list = new ArrayList<>();
+
+        for (ChatThread t : threads) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("threadId", t.getId());
+            map.put("threadName", t.getName());
+            map.put("updatedAt", t.getUpdatedAt());
+            map.put("createdAt", t.getCreatedAt());
+            list.add(map);
+        }
+
+        return list;
+    }
+
 	
-	     List<Long> threadIds = chatRepo.findThreadIdsForUser(userId);
-	     List<Map<String, Object>> list = new ArrayList<>();
-	
-	     for (Long tid : threadIds) {
-	         String name = chatRepo.findThreadName(tid);
-	
-	         Map<String, Object> map = new HashMap<>();
-	         map.put("threadId", tid);
-	         map.put("threadName", name != null ? name : "Thread " + tid);
-	
-	         list.add(map);
-	     }
-	
-	     return list;
-	 }
-	
+	 
+	 
+	 
 	 /* ---------------------------------------------------------
 	    ✅ Return all messages in a specific thread
 	    --------------------------------------------------------- */
 	 public List<ChatMessage> getMessagesForThread(Long threadId) {
-	     return chatRepo.findByThreadIdOrderByTimestampAsc(threadId);
+	     return chatRepo.findByThreadIdOrderByCreatedAtAsc(threadId);
 	 }
 	
 	 /* ---------------------------------------------------------
@@ -151,8 +166,9 @@ public class AssistantService {
 	    --------------------------------------------------------- */
 	 @Transactional
 	 public void renameThread(Long threadId, String newName) {
-	     chatRepo.renameThread(threadId, newName);
+	     chatThreadRepo.renameThread(threadId, newName);
 	 }
+
 	
 	 /* ---------------------------------------------------------
 	    ✅ Process message inside specific thread
@@ -164,19 +180,21 @@ public class AssistantService {
 	     userMsg.setThreadId(threadId);
 	     userMsg.setRole("user");
 	     userMsg.setContent(question);
+	     userMsg.setCreatedAt(LocalDateTime.now());
 	     chatRepo.save(userMsg);
 	
 	     double[] embedding = embeddingService.generateEmbedding(question);
 	     List<SearchResult> ctx = vectorStoreService.findSimilar(embedding);
 	     String context = vectorStoreService.combineResults(ctx);
 	
-	     ApiResponse ai = assistantClient.askAssistant(userId, question, context);
+	     ApiResponse ai = assistantClient.askAssistant(userId, threadId, question, context);
 	
 	     ChatMessage aMsg = new ChatMessage();
 	     aMsg.setUserId(userId);
 	     aMsg.setThreadId(threadId);
 	     aMsg.setRole("assistant");
 	     aMsg.setContent(ai.getAnswer());
+	     aMsg.setCreatedAt(LocalDateTime.now());
 	     chatRepo.save(aMsg);
 	
 	     ai.setThreadId(threadId);

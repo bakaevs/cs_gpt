@@ -63,10 +63,8 @@ public class AssistantController {
        ✅ 3. Create a new thread for a user
        --------------------------------------------------------- */
     @PostMapping("/thread/create")
-    public ResponseEntity<?> createThread(@RequestParam String userId) {
-
-        Long newThreadId = assistantService.createThread(userId);
-        return ResponseEntity.ok(newThreadId);
+    public Long createThread(@RequestParam String userId, @RequestParam String name) {
+        return assistantService.createThread(userId, name);
     }
 
 
