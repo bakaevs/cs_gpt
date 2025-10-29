@@ -27,7 +27,7 @@ public class ProcessQuestionTest {
 		try {
 			String question =  "Why Cow 1457 did not generate the alert on October 14th, 12 pm?";
 			//String question = "How many hours of data needed to predict calving?";
-			ApiResponse apiResponse = assistantService.processQuestion(question, "1");
+			ApiResponse apiResponse = assistantService.processQuestion(question, "1", 2l);
 			logger.info(apiResponse.getAnswer());
 			
 			

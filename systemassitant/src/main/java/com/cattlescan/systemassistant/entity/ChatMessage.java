@@ -18,7 +18,9 @@ public class ChatMessage {
     private String userId;
     private String role;
     private String content;
-
+    private Long threadId; 
+    private String threadName;
+    
     @Column(nullable = false)
     private LocalDateTime timestamp = LocalDateTime.now(); // auto-set on creation
 
@@ -71,5 +73,22 @@ public class ChatMessage {
 		this.timestamp = timestamp;
 	}
 
+	public Long getThreadId() {
+		return threadId;
+	}
+
+	public void setThreadId(Long threadId) {
+		this.threadId = threadId;
+	}
+
+	public String getThreadName() {
+		return threadName;
+	}
+
+	public void setThreadName(String threadName) {
+		this.threadName = threadName;
+	}
+
+	
 
 }

@@ -2,75 +2,288 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>System Assistant Chat</title>
+    <title>CattleScan System Assistant</title>
+
+    <!-- Bootstrap 4 -->
+    <link rel="stylesheet"
+          href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        #chat-container { max-width: 700px; margin: 0 auto; border: 1px solid #ccc; padding: 10px; height: 500px; overflow-y: auto; }
-        .message { margin: 5px 0; padding: 8px; border-radius: 5px; max-width: 80%; }
-        .user { background-color: #d1e7dd; align-self: flex-end; }
-        .assistant { background-color: #f8d7da; align-self: flex-start; }
-        #input-container { margin-top: 10px; display: flex; }
-        #user-input { flex-grow: 1; padding: 8px; }
-        #send-btn { padding: 8px 12px; }
-        .tool-call { font-style: italic; color: #555; margin-top: 2px; }
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .chat-wrapper {
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        #thread-sidebar {
+            width: 280px;
+            background: #f8f9fa;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .thread-item {
+            padding: 12px;
+            border-bottom: 1px solid #e5e5e5;
+            cursor: pointer;
+        }
+
+        .thread-item:hover {
+            background: #e9ecef;
+        }
+
+        .thread-item.active {
+            background: #007bff;
+            color: white;
+        }
+
+        /* Chat panel */
+        #chat-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #chat-header {
+            padding: 15px;
+            background: #f1f1f1;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #chat-container {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message {
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            max-width: 70%;
+            white-space: pre-line;
+        }
+
+        .message.user {
+            background: #d1e7dd;
+            align-self: flex-end;
+        }
+
+        .message.assistant {
+            background: #f8d7da;
+            align-self: flex-start;
+        }
+
+        #chat-input-row {
+            padding: 10px;
+            border-top: 1px solid #ddd;
+        }
+
+        #message-input {
+            width: 85%;
+            height: 40px;
+            padding: 8px;
+        }
+
+        #send-btn {
+            width: 14%;
+        }
     </style>
 </head>
-<body>
-    <h2>System Assistant Chat</h2>
-    <div id="chat-container"></div>
 
-    <div id="input-container">
-        <input type="text" id="user-input" placeholder="Type your question..." />
-        <button id="send-btn">Send</button>
+<body>
+
+<div class="chat-wrapper">
+
+    <!-- ✅ LEFT THREAD SIDEBAR -->
+    <div id="thread-sidebar">
+        <div class="p-3 border-bottom">
+            <button id="new-thread-btn" class="btn btn-primary btn-block">
+                + New Thread
+            </button>
+        </div>
+
+        <div id="thread-list"></div>
     </div>
 
-    <script type="text/javascript">
-        function appendMessage(role, text) {
-            let msgDiv = $('<div class="message"></div>');
-            msgDiv.addClass(role);
-            msgDiv.text(text);
-            $('#chat-container').append(msgDiv);
-            $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
-        }
 
-        function appendToolCall(toolText) {
-            let toolDiv = $('<div class="message tool-call"></div>');
-            toolDiv.text(toolText);
-            $('#chat-container').append(toolDiv);
-            $('#chat-container').scrollTop($('#chat-container')[0].scrollHeight);
-        }
+    <!-- ✅ RIGHT CHAT PANEL -->
+    <div id="chat-panel">
 
-        $('#send-btn').click(function() {
-            let question = $('#user-input').val().trim();
-            if (!question) return;
+        <!-- Header -->
+        <div id="chat-header">
+            <h5 id="thread-title">Select a thread</h5>
+            <button id="rename-thread-btn" class="btn btn-sm btn-secondary" disabled>
+                Rename
+            </button>
+        </div>
 
-            appendMessage('user', question);
-            $('#user-input').val('');
+        <!-- Chat Message Area -->
+        <div id="chat-container"></div>
 
-            $.ajax({
-                url: '/api/assistant/process',
-                method: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({ question: question, userId: '12-78' }),
-                success: function(response) {
-                    if (response.toolCalls && response.toolCalls.length > 0) {
-                        response.toolCalls.forEach(function(tool) {
-                            appendToolCall('Tool call: ' + tool.name + ' → ' + JSON.stringify(tool.arguments));
-                        });
-                    }
-                    appendMessage('assistant', response.answer);
-                },
-                error: function(xhr) {
-                    appendMessage('assistant', 'Error: ' + xhr.responseText);
-                }
+        <!-- Input -->
+        <div id="chat-input-row" class="input-group">
+            <input type="text" id="message-input" class="form-control" placeholder="Type your message…" disabled>
+            <div class="input-group-append">
+                <button id="send-btn" class="btn btn-success" disabled>Send</button>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ✅ Rename Thread Modal -->
+<div class="modal" id="renameModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rename Thread</h5>
+            </div>
+            <div class="modal-body">
+                <input id="rename-input" class="form-control" placeholder="New name">
+            </div>
+            <div class="modal-footer">
+                <button id="rename-save-btn" class="btn btn-primary">Save</button>
+                <button class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS (modal support) -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+
+    let activeThreadId = null;
+    const userId = "12-78";
+
+    $(document).ready(function () {
+        loadThreads();
+    });
+
+
+    /* ✅ Load Thread List */
+    function loadThreads() {
+        $.get("/api/assistant/threads?userId=" + userId, function (threads) {
+            $("#thread-list").empty();
+
+            threads.forEach(t => {
+                const div = $("<div>")
+                    .addClass("thread-item")
+                    .attr("data-id", t.threadId)
+                    .text(t.threadName)
+                    .click(() => openThread(t.threadId, t.threadName));
+
+                $("#thread-list").append(div);
             });
         });
+    }
 
-        // Optionally allow pressing Enter to send
-        $('#user-input').keypress(function(e) {
-            if (e.which === 13) { $('#send-btn').click(); }
+
+    /* ✅ Open a Thread */
+    function openThread(id, name) {
+        activeThreadId = id;
+
+        $(".thread-item").removeClass("active");
+        $(`.thread-item[data-id='${id}']`).addClass("active");
+
+        $("#thread-title").text(name);
+        $("#rename-thread-btn").prop("disabled", false);
+        $("#message-input, #send-btn").prop("disabled", false);
+
+        $("#chat-container").empty();
+
+        $.get("/api/assistant/thread/messages?threadId=" + id, function (messages) {
+            messages.forEach(msg => appendMessage(msg.role, msg.content));
+            scrollBottom();
         });
-    </script>
+    }
+
+
+    /* ✅ Create New Thread */
+    $("#new-thread-btn").click(function () {
+        $.post("/api/assistant/thread/create?userId=" + userId, function (data) {
+            loadThreads();
+        });
+    });
+
+
+    /* ✅ Rename Thread */
+    $("#rename-thread-btn").click(function () {
+        $("#renameModal").modal("show");
+    });
+
+    $("#rename-save-btn").click(function () {
+        const newName = $("#rename-input").val().trim();
+        if (!newName) return;
+
+        $.post("/api/assistant/thread/rename",
+            {threadId: activeThreadId, name: newName},
+            function () {
+                $("#renameModal").modal("hide");
+                loadThreads();
+                $("#thread-title").text(newName);
+            });
+    });
+
+
+    /* ✅ Send Message */
+    $("#send-btn").click(function () {
+        const msg = $("#message-input").val().trim();
+        if (!msg || !activeThreadId) return;
+
+        appendMessage("user", msg);
+        $("#message-input").val("");
+
+        $.ajax({
+            url: "/api/assistant/thread/send",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+                threadId: activeThreadId,
+                userId: userId,
+                question: msg
+            }),
+            success: function (res) {
+                appendMessage("assistant", res.answer);
+                scrollBottom();
+            },
+            error: function (xhr) {
+                appendMessage("assistant", "Error: " + xhr.responseText);
+            }
+        });
+    });
+
+
+    /* ✅ Helper Functions */
+    function appendMessage(role, text) {
+        let div = $("<div>").addClass("message").addClass(role).text(text);
+        $("#chat-container").append(div);
+    }
+
+    function scrollBottom() {
+        const chat = $("#chat-container");
+        chat.scrollTop(chat.prop("scrollHeight"));
+    }
+
+</script>
+
 </body>
 </html>
