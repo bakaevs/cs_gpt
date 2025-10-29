@@ -247,16 +247,6 @@ public class OpenAIAssistantClient {
                 // ------------------------------
                 String result = checkAlertStatus(cowId, farmId, date, time, alertType);
 
-                // ------------------------------
-                // ✅ Save tool message to DB
-                /* ------------------------------
-                ChatMessage toolMsg = new ChatMessage();
-                toolMsg.setUserId(userId);
-                toolMsg.setThreadId(threadId);
-                toolMsg.setRole("assistant");
-                toolMsg.setContent(result);
-                chatMessageRepository.save(toolMsg);*/
-
                 apiResponse.setAnswer(result);
                 apiResponse.setPayload(result);
                 return apiResponse;
@@ -267,14 +257,6 @@ public class OpenAIAssistantClient {
         // ✅ 2) NORMAL ASSISTANT MESSAGE
         // ====================================================
         String assistantText = messageObj.optString("content", "No response.");
-
-        ChatMessage assistantMsg = new ChatMessage();
-        assistantMsg.setUserId(userId);
-        assistantMsg.setThreadId(threadId);
-        assistantMsg.setRole("assistant");
-        assistantMsg.setContent(assistantText);
-        chatMessageRepository.save(assistantMsg);
-
         apiResponse.setAnswer(assistantText);
 
         return apiResponse;

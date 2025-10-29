@@ -18,6 +18,7 @@ import com.cattlescan.systemassistant.model.ApiResponse;
 import com.cattlescan.systemassistant.model.SearchResult;
 import com.cattlescan.systemassistant.repository.ChatMessageRepository;
 import com.cattlescan.systemassistant.repository.ChatThreadRepository;
+import com.cattlescan.systemassistant.util.MarkdownConverter;
 
 @Service
 public class AssistantService {
@@ -157,9 +158,20 @@ public class AssistantService {
 	 /* ---------------------------------------------------------
 	    ✅ Return all messages in a specific thread
 	    --------------------------------------------------------- */
-	 public List<ChatMessage> getMessagesForThread(Long threadId) {
-	     return chatRepo.findByThreadIdOrderByCreatedAtAsc(threadId);
-	 }
+    public List<ChatMessage> getMessagesForThread(Long threadId) {
+
+        List<ChatMessage> messages = chatRepo.findByThreadIdOrderByCreatedAtAsc(threadId);
+
+        // ✅ Convert Markdown → HTML for each message before returning
+        for (ChatMessage msg : messages) {
+            if (msg.getContent() != null) {
+                msg.setContent(MarkdownConverter.toHtml(msg.getContent()));
+            }
+        }
+
+        return messages;
+    }
+
 	
 	 /* ---------------------------------------------------------
 	    ✅ Rename a thread

@@ -89,7 +89,9 @@
     }
 
     .assistant .msg-bubble {
-        background: #f8d7da;
+        /* ✅ Light blue assistant background */
+        background-color: #e8f4ff;
+        border: 1px solid #c9e6ff;
         align-self: flex-start;
     }
 
@@ -99,15 +101,33 @@
         opacity: 0.7;
     }
 
-    #typing-indicator {
-        padding: 10px 18px;
-        background: #eee;
+    /* ✅ Typing indicator */
+    .typing-indicator {
+        display: inline-block;
+        padding: 10px 16px;
         border-radius: 12px;
+        background: #e8f4ff;
+        border: 1px solid #c9e6ff;
         font-size: 14px;
+        font-style: italic;
         width: fit-content;
-        margin-top: 10px;
-        display: none;
+        margin-top: 6px;
+        align-self: flex-start;
     }
+
+    .typing-dots::after {
+        content: "...";
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+        0%, 20% { color: transparent; }
+        40% { color: #444; }
+        60% { color: transparent; }
+        80% { color: #444; }
+        100% { color: transparent; }
+    }
+
 </style>
 
 </head>
@@ -155,7 +175,7 @@
 </div>
 
 
-<!-- ✅ Rename Thread Modal (Bootstrap 4 correct markup) -->
+<!-- ✅ Rename Thread Modal -->
 <div class="modal fade" id="renameModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -178,7 +198,6 @@
     </div>
 </div>
 
-<!-- Bootstrap JS (modal support) -->
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -189,7 +208,7 @@ const userId = "12-78";
 $(document).ready(function () {
     loadThreads();
 
-    // ✅ ENTER sends message
+    // ✅ ENTER sends the message
     $("#message-input").keypress(function (e) {
         if (e.which === 13) {
             e.preventDefault();
@@ -218,7 +237,7 @@ function loadThreads() {
 }
 
 /* -------------------------------------------------------
-   ✅ Open Thread + display messages
+   ✅ Open Thread
 ------------------------------------------------------- */
 function openThread(id, name) {
     activeThreadId = id;
@@ -239,14 +258,14 @@ function openThread(id, name) {
 }
 
 /* -------------------------------------------------------
-   ✅ Create New Thread
+   ✅ Create Thread
 ------------------------------------------------------- */
 $("#new-thread-btn").click(function () {
     let name = prompt("Enter thread name:");
     if (!name) name = "New Thread";
 
     $.post("/api/assistant/thread/create?userId=" + userId + "&name=" + encodeURIComponent(name),
-        function (newId) {
+        function () {
             loadThreads();
         });
 });
@@ -307,14 +326,13 @@ $("#send-btn").click(function () {
 });
 
 /* -------------------------------------------------------
-   ✅ Helper: render message bubble
+   ✅ Render Message
 ------------------------------------------------------- */
 function appendMessage(role, text, timestamp) {
     const time = timestamp ? formatTimestamp(timestamp) : currentTime();
 
     let block = $("<div>").addClass("msg-block").addClass(role);
-
-    let bubble = $("<div>").addClass("msg-bubble").text(text);
+    let bubble = $("<div>").addClass("msg-bubble").html(text);
     let stamp = $("<div>").addClass("msg-timestamp").text(time);
 
     block.append(bubble).append(stamp);
@@ -322,33 +340,37 @@ function appendMessage(role, text, timestamp) {
 }
 
 /* -------------------------------------------------------
-   ✅ Timestamps
+   ✅ Typing Indicator
 ------------------------------------------------------- */
-function currentTime() {
-    const d = new Date();
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
+let typingObj = null;
 
-function formatTimestamp(ts) {
-    return new Date(ts).toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit"
-    });
+function showTyping(on) {
+    if (on) {
+        if (!typingObj) {
+            typingObj = $("<div>")
+                .addClass("typing-indicator typing-dots")
+                .text("Assistant is typing");
+
+            $("#chat-container").append(typingObj);
+            scrollBottom();
+        }
+    } else {
+        if (typingObj) {
+            typingObj.remove();
+            typingObj = null;
+        }
+    }
 }
 
 /* -------------------------------------------------------
-   ✅ Typing Indicator
+   ✅ Timestamp Helpers
 ------------------------------------------------------- */
-function showTyping(on) {
-    if (on) {
-        if ($("#typing-indicator").length === 0) {
-            $("#chat-container").append(
-                `<div id="typing-indicator">Assistant is typing…</div>`
-            );
-        }
-    } else {
-        $("#typing-indicator").remove();
-    }
+function currentTime() {
+    return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatTimestamp(ts) {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 /* -------------------------------------------------------
@@ -360,7 +382,5 @@ function scrollBottom() {
 }
 
 </script>
-
-
 </body>
 </html>

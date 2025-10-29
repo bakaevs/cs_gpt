@@ -19,6 +19,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import com.cattlescan.systemassistant.model.ApiResponse;
 import com.cattlescan.systemassistant.service.AssistantService;
+import com.cattlescan.systemassistant.util.MarkdownConverter;
 
 @RestController
 @RequestMapping("/api/assistant")
@@ -92,6 +93,7 @@ public class AssistantController {
         String question = body.get("question").toString();
 
         ApiResponse response = assistantService.processThreadQuestion(threadId, question, userId);
+        response.setAnswer(MarkdownConverter.toHtml(response.getAnswer()));
 
         return ResponseEntity.ok(response);
     }
