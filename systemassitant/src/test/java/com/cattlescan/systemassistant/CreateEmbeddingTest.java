@@ -26,7 +26,7 @@ public class CreateEmbeddingTest {
 	@Test
 	public void embedPdfs() {		
 		try {
-			systemEmbedding.processPdfFile(new File("C:\\Users\\serge\\OneDrive\\Documents\\System description\\Calving_Alert_Troubleshooting_Guide.pdf"));
+			systemEmbedding.processPdfFile(new File("C:\\Users\\serge\\OneDrive\\Documents\\System description\\Low_Temperature_(LT)_Alert_Troubleshooting Guide.pdf"));
 		} catch (Exception e) {
 			logger.error(e.getMessage());
 			e.printStackTrace();

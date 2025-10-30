@@ -67,7 +67,7 @@ public class SystemEmbedding {
             for (String chunk : chunks) {
                 try {
                     double[] embedding = embeddingService.generateEmbedding(chunk);
-                    vectorStoreService.saveEmbedding(chunk, embedding);
+                    vectorStoreService.saveEmbedding(chunk, embedding, pdfFile.getName());
                 } catch (Exception e) {
                     System.err.println("⚠️ Failed to process chunk: " + e.getMessage());
                 }
@@ -97,7 +97,7 @@ public class SystemEmbedding {
             for (String chunk : chunks) {
                 try {
                     double[] embedding = embeddingService.generateEmbedding(chunk);
-                    vectorStoreService.saveEmbedding(chunk, embedding);
+                    vectorStoreService.saveEmbedding(chunk, embedding, pdfFile.getName());
                 } catch (Exception e) {
                     System.err.println("⚠️ Failed to process chunk: " + e.getMessage());
                 }

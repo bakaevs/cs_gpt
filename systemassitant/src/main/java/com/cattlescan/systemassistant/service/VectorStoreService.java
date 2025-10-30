@@ -55,9 +55,9 @@ public class VectorStoreService {
     /**
      * Saves a text fragment and its embedding into both DB and memory.
      */
-    public synchronized void saveEmbedding(String text, double[] embedding) throws SQLException {
+    public synchronized void saveEmbedding(String text, double[] embedding, String source) throws SQLException {
         try {
-            Embedding entity = new Embedding(text, EmbeddingUtils.doubleArrayToJson(embedding));
+            Embedding entity = new Embedding(text, EmbeddingUtils.doubleArrayToJson(embedding), source);
             embeddingRepository.save(entity);
             inMemoryEmbeddings.add(entity);
         } catch (Exception e) {
